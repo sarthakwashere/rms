@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite --port 3010",
     "build": "vite build",
-    "start": "vite preview --port 3010"
+    "start": "vite preview --host 0.0.0.0 --port ${PORT:-3010}"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
