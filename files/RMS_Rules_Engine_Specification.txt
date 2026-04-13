@@ -1,0 +1,1155 @@
+AIRPORT RESOURCE MANAGEMENT SYSTEM
+RULES & LOGIC ENGINE SPECIFICATION
+
+
+IATA AHM 2024 Edition  |  IATA IGOM  |  IATA Resolution 753  |  IATA SSIM Chapter 6
+EUROCONTROL A-CDM Specification v3.5  |  WASG Edition 4 (August 2025)
+ICAO Annexes 2, 9, 14, 17, 19  |  IATA CUTE RP1797C  |  EU Regulation 1107/2006
+
+
+Document Title
+Airport RMS — Rules & Logic Engine Specification
+Version
+1.0  —  March 2026
+Standards
+IATA AHM 2024 | IGOM | Res.753 | SSIM | A-CDM v3.5 | WASG Ed.4 | ICAO Annexes
+Scope
+AOCC + AICC  |  All Airport Resource Domains
+Audience
+Platform Architects · Rules Engineers · Airport Operations Teams
+
+1. Introduction & Purpose
+1.1 Purpose
+This document specifies the complete Rules and Logic Engine for an Airport Resource Management System (RMS). It defines every allocation rule, compliance check, constraint logic, message processing specification, and decision workflow governing the management of all airport resources — gates, stands, check-in counters, baggage belts, boarding gates, ground handling equipment, staff, and airfield infrastructure — in both Airport Operations Control Centre (AOCC) and Airport Infrastructure and Control Centre (AICC) environments.
+Every rule is traceable to its authoritative IATA, ICAO, ACI, or EUROCONTROL source, and includes trigger/input conditions, processing logic, outputs, exceptions, SLA timing, and audit requirements.
+
+1.2 Standards Framework
+
+Standard
+Full Title / Description
+Edition
+Applies To
+IATA AHM
+Airport Handling Manual — standard procedures for ground handling, turnaround, and airport operations
+2024 Ed.
+All ground ops, turnaround, handling
+IATA IGOM
+Ground Operations Manual — global standard for safe and efficient ground handling
+2024 Ed.
+Ground handling, GSE, safety
+IATA Res.753
+Baggage Tracking — mandatory tracking at 4 touchpoints: check-in, loading, arrival, transfer
+Since 2018
+Baggage management
+IATA SSIM Ch.6
+Standard Schedules Information Manual — message formats for flight data exchange
+Current
+AODB, messaging
+IATA CUTE RP1797C
+Common Use Terminal Equipment / CUPPS — shared check-in infrastructure standards
+RP1797C
+Check-in counters
+EUROCONTROL A-CDM
+Airport Collaborative Decision Making — TOBT/TSAT/TTOT/DPI milestone management
+v3.5+
+AOCC, departure planning
+ICAO Annex 14
+Aerodromes — physical characteristics, obstacle limitation, visual aids, airfield lighting
+Vol.I Ed.8
+AICC, airfield, stands
+ICAO Annex 19
+Safety Management — SMS framework for aerodrome operators
+Ed.2
+Safety, SMS
+ICAO Annex 9
+Facilitation — standards for border, customs, immigration, and passenger processing
+Current
+Passenger flow, border
+EU Reg 1107/2006
+Rights of persons with reduced mobility (PRM) when travelling by air
+Ongoing
+PRM resource management
+IATA Delay Codes
+ATA standard delay coding system for operational performance and attribution recording
+Current
+OTP, turnaround
+WASG Ed.4
+Worldwide Airport Slot Guidelines — slot allocation and 80/20 compliance rules
+Aug 2025
+Slot / A-CDM airports
+
+1.3 Resource Domains Covered
+
+Domain
+Resources Managed
+AOCC/AICC
+Primary Standard
+Gate & Stand Mgmt
+Contact gates, remote stands, parking stands, swing/link gates
+AOCC
+AHM 510, ICAO Annex 14
+Check-In Counter Mgmt
+CUTE counters, dedicated positions, self-service kiosks, bag drop
+AOCC
+IATA CUTE RP1797C
+Baggage Resource Mgmt
+Make-up belts, arrival carousels, EBS, ULD/container positions
+AOCC
+IATA Res.753, AHM
+Boarding Gate Mgmt
+Boarding gates, jet bridges (PBB), bus gates, remote positions
+AOCC
+AHM, CUTE RP1797C
+Ground Handling & Turnaround
+GSE (GPU, stairs, belt loaders, pushback, catering), ULDs, crews
+AOCC
+IATA AHM, IGOM
+Workforce & Staff
+Ops controllers, ground agents, security staff, PRM assistants
+AOCC
+IATA AHM, labour law
+AOCC Operations
+A-CDM milestones, IROPS, OTP, CTOT, what-if, stakeholder coord.
+AOCC
+A-CDM, WASG, AHM
+Airfield Infrastructure
+Runways, taxiways, lighting, A-SMGCS, FOD, vehicles, de-icing
+AICC
+ICAO Annex 14, Doc 9830
+Passenger Flow
+Security lanes, immigration, lounge, PRM, MCT, queue analytics
+AOCC
+ICAO Annex 9, EU 1107/2006
+
+
+2. Core Concepts & Definitions
+2.1 Flight Lifecycle States
+Every flight passes through defined states. The rules engine applies different logic and triggers different resource actions at each state transition. The AODB is the single source of truth for flight state.
+
+State
+Definition
+RMS Action Triggered
+Standard
+SCH — Scheduled
+Flight in published schedule (SSIM). Planning horizon open.
+Seasonal plan — preliminary gate/stand allocated.
+SSIM, AHM
+PRE — Pre-Tactical
+Within 72h planning horizon. Aircraft registration confirmed.
+Day-of-ops plan generated. All resources tentatively confirmed.
+A-CDM §3
+ACT — Active / En-Route
+Airborne towards airport. ADS-B/ACARS tracking active.
+TOBT submitted. TSAT calculated. Resources locked. Timers active.
+A-CDM §4
+GND — On Ground
+Aircraft landed (ATA recorded). Chocks on. Turnaround in progress.
+Turnaround clock starts. GSE dispatched. Milestones tracked.
+AHM 513, IGOM
+DEP — Departed
+Aircraft departed (ATD recorded). Gate/stand released.
+Resources released. OTP final status set. DPI-0 sent to NM.
+A-CDM §5, WASG
+CXL — Cancelled
+Flight cancelled. All resources must be released.
+All resources released. IROPS cascade. Slot return triggered.
+AHM, WASG SWM
+DIV — Diverted
+Inbound flight diverted from another airport — unplanned arrival.
+Emergency stand allocation. Priority resource assignment.
+ICAO Annex 2, AHM
+DLY — Delayed
+Significant deviation from STD/STA (typically > 15 min).
+IROPS assessment triggered. TOBT updated. Cascade evaluated.
+A-CDM, AHM, Delay codes
+
+2.2 Key RMS Definitions
+
+Term
+Definition / Formula
+STD / STA
+Scheduled Time of Departure / Arrival — published airline schedule time at this airport.
+ATD / ATA
+Actual Time of Departure (off-blocks) / Arrival (on-blocks / chocks on). Definitive movement times in AODB.
+TOBT
+Target Off-Block Time — time airline/handler estimates aircraft will be ready to push back. Formula: TOBT = ATA + SGT.
+TSAT
+Target Start-Up Approval Time — time A-CDM calculates ATC will approve engine start. TSAT = TTOT - taxi time.
+TTOT
+Target Take-Off Time — departure runway time targeting by A-CDM. TTOT = TSAT + start-up time + taxi time.
+CTOT
+Calculated Take-Off Time — mandatory ATC departure window from EUROCONTROL NM. Must depart CTOT-5min to CTOT+10min.
+SGT
+Standard Ground Time — minimum turnaround time per aircraft type and rotation type. Basis for TOBT calculation.
+OTP
+On-Time Performance — % departures with ATD ≤ STD+15min (IATA standard). Formula: OTP% = On-time departures / Total departures × 100.
+MCT
+Minimum Connection Time — minimum time for passenger or bag to transfer between two flights at this airport.
+PRM
+Passenger Requiring Assistance / Person with Reduced Mobility — entitled to free assistance under EU Reg 1107/2006.
+IROPS
+Irregular Operations — any unplanned event causing significant deviation from published schedule.
+GSE
+Ground Support Equipment — GPU, PCA, stairs, belt loaders, pushback tugs, catering trucks, fuel bowsers, water/waste service.
+AODB
+Airport Operational Database — central real-time database. Single authoritative source of truth for all flight and operational data.
+HOT
+Hold-Over Time — estimated time de-icing fluid remains effective. Aircraft must depart before HOT expires.
+
+
+3. Gate & Stand Management Rules
+3.1 Overview
+Gate and stand allocation is the core function of the RMS. Rules must allocate the most appropriate gate or stand to each flight, balancing aircraft compatibility, airline preference, terminal zoning, operational adjacency, and OTP performance — automatically and in real time.
+
+IATA STANDARD
+IATA AHM 510 defines standard procedures for aircraft stand allocation. ICAO Annex 14 Volume I defines physical stand compatibility requirements (wingspan limits, ICAO code letter, clearance distances). Both are mandatory inputs to allocation rules.
+
+GSM-001  Stand Compatibility Constraint Rule   [ICAO Annex 14 Vol.I §3.7; IATA AHM 510]
+Description
+The rules engine must never allocate an aircraft to a stand that is physically incompatible with its type. Compatibility is determined by a pre-configured Stand Compatibility Matrix encoding ICAO Annex 14 clearances for every stand.
+Trigger / Input
+	•	Inbound flight with confirmed aircraft type/registration
+	•	Stand Compatibility Matrix (static master data)
+	•	Active NOTAM-based stand restrictions
+Output / Action
+	•	COMPATIBLE stands list for the flight
+	•	INCOMPATIBLE flag with reason if no valid stand found
+	•	CRITICAL alert to coordinator if no compatible stand within 60 min of ETA
+Conditions
+	•	ICAO Annex 14 Table 3-1 Code Letter clearances: Code A (<15m wingspan) through Code F (>65m — A380). No stand allocated if aircraft wingspan or MTOW exceeds stand certified limits
+	•	Obstacle Clearance Zone (OCZ): no aircraft part (wingtip, engine, tail) may infringe the OCZ of an adjacent occupied stand
+	•	Stand geometry (parking position, VDGS limits, jet blast clearance) validated against aircraft type before allocation
+	•	ICAO wake turbulence category (A=Super/B=Heavy/C=Upper Medium/D=Lower Medium/E=Small/F=Light) used as secondary compatibility filter
+Exceptions
+	•	Temporary stand upgrades (removing obstacles) may allow higher-code aircraft — coordinator override with mandatory audit log
+	•	Emergency diversions: any physically safe stand — safety override with ATC coordination required
+SLA / Timing
+Compatibility check: < 1 second. Violation alert: immediate. Override logged: < 30 seconds.
+Standards Ref
+ICAO Annex 14 §3.7, §3.14; IATA AHM 510 §6.3
+
+GSM-002  Auto-Allocation Scoring Algorithm Rule   [IATA AHM 510; Airport operational best practice]
+Description
+The auto-allocation engine applies a multi-criteria weighted scoring model to rank all compatible available stands for each flight, selecting the highest-scoring stand as the primary allocation.
+Trigger / Input
+	•	All flights requiring allocation for the planning horizon
+	•	Stand inventory with current status (available/occupied/blocked/NOTAM)
+	•	Aircraft type, airline, terminal zone, STD/STA, SGT
+Output / Action
+	•	Ranked stand allocation per flight
+	•	Conflict-free allocation plan for full planning period
+	•	Utilisation statistics: contact stand % and peak-hour resource %
+Conditions
+	•	SCORING WEIGHTS (configurable): (1) Aircraft compatibility — mandatory filter, incompatible=0 | (2) Airline preference/zone 25% — dedicated and preferred zones score highest | (3) Passenger walking distance 20% — adjacency to check-in and boarding gates | (4) Turnaround type fit 15% — overnight parking vs transit stands | (5) Contact vs remote preference 15% — contact stands score higher for passenger flights | (6) Resource utilisation balance 15% — even distribution preferred | (7) MCT adjacency 10% — connecting flights in adjacent gates where possible
+	•	TIEBREAKER: earliest STD first when scores are equal
+	•	CONTACT STAND RULE: Flights with > 200 pax must use contact stand if any available (configurable threshold)
+Exceptions
+	•	Manual coordinator override always permitted — must be logged with reason code
+	•	Emergency/priority flights bypass scoring — dedicated rule GSM-004 applies
+SLA / Timing
+Seasonal allocation: < 10 min for 500+ flights. Single-flight real-time: < 5 seconds. Reallocation on change: < 30 seconds.
+Standards Ref
+IATA AHM 510 §6; ICAO Annex 14
+
+GSM-003  Stand Conflict Detection & Resolution Rule   [IATA AHM 510; Internal operational logic]
+Description
+The rules engine must continuously monitor the stand plan for conflicts (two aircraft at same stand with overlapping times) and automatically detect, classify, and resolve or escalate them.
+Trigger / Input
+	•	Real-time changes to ETD/ETA, aircraft type, or stand allocation
+	•	AODB live flight state updates (ATA, ATD)
+	•	Manual stand changes by coordinator
+Output / Action
+	•	Conflict-free plan maintained in real time
+	•	CONFLICT ALERT: CRITICAL (overlap < 30 min) / WARNING (30-60 min) / ADVISORY (> 60 min)
+	•	Auto-resolution: re-score without conflicting stand for lower-priority flight
+	•	Escalation to coordinator if auto-resolution fails
+Conditions
+	•	Conflict = (STA_flight2 - buffer) < (STD_flight1 + buffer) where buffer = 15 min narrowbody, 20 min widebody
+	•	Resolution priority: Priority 1 = landing flight (cannot be moved), Priority 2 = departing < 45 min to STD, Priority 3 = earlier-allocated has priority
+	•	Cascade check: every reallocation rechecked for downstream conflicts before confirming
+Exceptions
+	•	Mass disruption (weather ground stop): coordinator may invoke IROPS mode — manual conflict resolution workspace with auto-resolution suspended
+SLA / Timing
+Conflict detection: < 2 seconds of any data change. Auto-resolution: < 30 seconds. Coordinator escalation: immediate if unresolved.
+Standards Ref
+IATA AHM 510; ICAO Annex 14 §3.7
+
+Gate / Stand Allocation — Processing Flow
+Step
+Action / Logic
+Decision / Condition
+Outcome / Next
+Actor
+1
+Flight data received/updated in AODB
+Does flight require stand allocation?
+If YES: trigger allocation engine. If NO: skip.
+AODB
+2
+Run Stand Compatibility Matrix against aircraft type
+Compatible stands available?
+If NONE: CRITICAL alert. If YES: proceed.
+System
+3
+Filter stands by availability window: STA to STA+SGT+buffer
+Sufficient available stands to score?
+If insufficient: flag and narrow to nearest alternatives.
+System
+4
+Apply weighted scoring model (GSM-002) to all valid stands
+Clear highest-scoring stand (score diff > 10 pts)?
+If YES: auto-allocate. If NO (tie): tiebreaker — earliest STD.
+System
+5
+Check contact stand entitlement and load factor rule
+Flight entitled to contact but none allocated?
+If yes: SLA breach alert. Proceed with remote + bus service.
+System
+6
+Conflict check: validate against all flights in ±3-hour window
+Any conflict on allocated stand?
+If YES: auto-resolve (re-score). If unresolvable: escalate.
+System
+7
+Confirm allocation in AODB. Generate all stakeholder notifications.
+All parties notified (airline, handler, FIDS)?
+Gate assignment message sent. FIDS updated. Handler portal updated.
+System
+8
+Continuous monitoring: AODB updates trigger real-time re-check
+Change creates conflict or better stand available?
+If conflict: re-resolve. If better: offer reallocation.
+System
+
+
+4. Check-In Counter Management Rules
+4.1 Overview
+Check-in counter allocation manages assignment of check-in positions (CUTE common-use, dedicated, self-service) to flights, balancing airline zoning, passenger volume, CUTE/CUSS standards, and real-time operational changes to prevent queue SLA breaches.
+
+CCM-001  Counter Allocation & Open/Close Scheduling Rule   [IATA RP1797C (CUTE); Airport SLA; Airline handling agreements]
+Description
+The rules engine must automatically calculate the number of check-in counters required per flight and schedule open/close times, based on passenger load, aircraft type, check-in duration parameters, and SLA commitments.
+Trigger / Input
+	•	Flight schedule with STD, aircraft type, max seat count, expected load factor
+	•	Airline/handler check-in duration parameters (open time before STD, close time before STD)
+	•	Counter inventory: type (CUTE/dedicated/self-service/bag-drop), terminal zone, current status
+Output / Action
+	•	Counter allocation plan: counters assigned per flight with open/close schedule
+	•	Staffing demand: positions × hours per flight — feeds workforce module
+	•	FIDS configuration: counter numbers published
+	•	Alert if required counters cannot be met (SLA breach)
+Conditions
+	•	COUNTER QUANTITY: Required = CEIL(PAX_EXPECTED / (COUNTER_THROUGHPUT × CHECK_IN_DURATION_HOURS)). Default throughput: 180 pax/counter/hour economy, 60 premium (configurable)
+	•	OPEN TIME: minimum 3 hours before STD (international), 2 hours (domestic) — configurable per airline
+	•	CLOSE TIME: minimum 40 minutes before STD (international), 30 minutes (domestic) — configurable
+	•	CUTE ASSIGNMENT: CUTE terminals must match airline DCS system — validated against CUTE database before allocation
+	•	ZONE RULE: Counters allocated within airline's check-in zone where available; cross-zone requires coordinator approval
+Exceptions
+	•	IROPS (sudden pax surge for rebooking): IROPS counter rule CCM-003 activates additional counters
+	•	Slot change > 60 min earlier: automatic reallocation triggered
+SLA / Timing
+Counter plan: 72 hours before STD. Reallocation on change: within 10 minutes. FIDS update: within 60 seconds.
+Standards Ref
+IATA RP1797C; IATA IGOM §11; airline handling agreements
+
+CCM-002  CUTE / CUSS Compliance Rule   [IATA RP1797C (CUTE); IATA CUSS Standard]
+Description
+All CUTE terminal assignments must comply with IATA RP1797C. The rules engine must validate CUTE configuration compatibility between assigned terminal hardware and the airline DCS before confirming any counter allocation.
+Trigger / Input
+	•	Counter CUTE hardware configuration (model, DCS capability matrix)
+	•	Airline DCS system (Amadeus Altéa, SITA iBorders, Navitaire, etc.)
+	•	CUTE compatibility matrix: which terminals support which DCS systems
+Output / Action
+	•	COMPATIBLE flag if terminal supports airline DCS
+	•	INCOMPATIBLE alert if mismatch — alternative terminal suggested
+	•	Configuration push to CUTE terminal if DCS supports remote configuration
+Conditions
+	•	Rule 1: CUTE terminal must support airline DCS. If incompatible: allocate alternative or dedicated position
+	•	Rule 2: CUSS kiosk allocated only to airlines with self-service check-in capability — otherwise staffed counter only
+	•	Rule 3: Premium class counters must have CUTE config for priority check-in and priority bag processing
+	•	Rule 4: Bag drop counters configured per airline's bag drop workflow (agent-assisted or fully self-service)
+Exceptions
+	•	If CUTE reconfiguration feasible (> 30 min lead time): system may trigger reconfiguration and confirm pending successful config push
+SLA / Timing
+Compatibility check: < 3 seconds. Config push: triggered > 30 min before counter open time.
+Standards Ref
+IATA RP1797C; IATA CUPPS; airport CUTE MOU
+
+
+5. Baggage Resource Management Rules
+5.1 Overview
+Baggage resource management covers outbound make-up belt allocation, inbound arrival carousel assignment, transfer baggage routing, and IATA Resolution 753 tracking compliance. The rules engine interfaces directly with the Baggage Handling System (BHS).
+
+IATA RESOLUTION 753
+IATA Resolution 753 (effective June 2018) mandates all member airlines track bags at four mandatory touchpoints: (1) Check-In hand-off to airline, (2) Loading into aircraft hold, (3) Arrival at destination, (4) Transfer hand-off. The RMS must generate tracking events at each milestone.
+
+BRM-001  Outbound Baggage Make-Up Belt Allocation Rule   [IATA AHM; IATA Resolution 753; BHS interface specification]
+Description
+The rules engine must allocate outbound baggage make-up positions to flights considering BHS sortation zone compatibility, make-up crew positioning, timing constraints, and ULD/container assignments.
+Trigger / Input
+	•	Flight STD, aircraft type, cargo load plan, expected bag count
+	•	BHS sortation logic and zone-to-belt mapping
+	•	Make-up belt availability with timing window
+	•	ULD/container types required
+Output / Action
+	•	Make-up belt(s) assigned per flight with make-up start/end window
+	•	ULD/container assignment linked to stand
+	•	Handler make-up crew demand output
+	•	BHS sortation command: route bags from early bag store to assigned belt at make-up time
+Conditions
+	•	TIMING: Make-up must start no later than STD - load time - taxi time. Load time: 25 min narrowbody, 45 min widebody (configurable). Typical window: STD-120min to STD-45min
+	•	CAPACITY: Belt allocation must not exceed BHS belt throughput (configurable bags/hr per belt). Large aircraft: multiple belts
+	•	ZONE: Belt must be in same BHS sortation zone as aircraft stand/pier — cross-zone routing triggers BHS reroute command and must be validated against processing time
+	•	ULD: ULD type must match aircraft cargo hold configuration and available inventory
+Exceptions
+	•	Late arrival (> 45 min): make-up timing recalculated, early bags held in EBS, BHS sortation delayed
+	•	BHS failure: manual make-up triggered — IROPS rule BRM-004 activates
+SLA / Timing
+Belt allocation: 24 hours before STD. BHS command at make-up start time ± 2 min. Reallocation on delay: within 10 min of ETA change.
+Standards Ref
+IATA AHM; IATA Resolution 753; airport BHS specification
+
+BRM-002  Inbound Arrival Carousel Allocation Rule   [IATA AHM; Airport passenger experience SLA]
+Description
+The rules engine must allocate arrival carousels with the primary objective of delivering first bag within SLA (typically 20 min of chocks-on) and last bag within SLA (typically 30-35 min of chocks-on).
+Trigger / Input
+	•	Flight ATA (actual or estimated), aircraft type, bag count (from LDM or DCS)
+	•	Carousel availability (current flights, expected delivery completion times)
+	•	Carousel-to-pier proximity matrix
+Output / Action
+	•	Carousel assigned per flight
+	•	FIDS/DIDS carousel display updated — airside and landside
+	•	Handler unloading crew notified
+	•	First/last bag SLA countdown timer activated
+Conditions
+	•	PROXIMITY: Carousel must be in arrivals hall closest to the aircraft's pier/gate — cross-pier allocation triggers extended SLA warning
+	•	CAPACITY: Carousel not allocated to new flight while previous flight's bags remain on it — minimum clearance: last bag ETA + 15 min
+	•	SLA: If ETA + first-bag target > carousel available: alert and reallocate
+	•	DISPLAY: Carousel number published to FIDS landside within 10 min of ATA or before first bag — whichever earlier
+Exceptions
+	•	Multiple widebody simultaneous arrivals: coordinator may allocate two carousels per flight to meet SLA
+	•	Transfer bags with MCT < 45 min: flagged for priority unloading — handler notified via baggage priority alert
+SLA / Timing
+Carousel allocated at ATA or latest 15 min before ETA. FIDS update within 60 seconds of confirmation.
+Standards Ref
+IATA AHM; IATA Resolution 753; airport passenger experience KPIs
+
+BRM-003  Transfer Baggage MCT Compliance Rule   [IATA Resolution 753; Airport MCT; IATA AHM 513]
+Description
+The rules engine must identify all transfer bags with MCT at risk, generate priority handling instructions, and escalate to operations if MCT compliance cannot be achieved.
+Trigger / Input
+	•	Transfer bag records: connecting flight details, MCT for connection pair, inbound ATA
+	•	BHS transfer routing time calculation
+	•	Outbound flight STD and bag close time
+Output / Action
+	•	PRIORITY flag on transfer bags in BHS: route to transfer belt immediately on unload
+	•	MCT risk alert to baggage controller and airline OCC if routing time > available window
+	•	Rush transfer procedure triggered for ultra-tight connections
+Conditions
+	•	MCT RISK: Available time = outbound STD - 40 min (bag close) - ATA. Risk = BHS routing time > available time
+	•	PRIORITY LEVELS: GREEN (> 20 min buffer) / AMBER (5-20 min — priority routing) / RED (< 5 min — manual intervention)
+	•	RUSH BAG: RED status bags are manually escorted — handler resource dispatched from inbound aircraft
+	•	RES.753 COMPLIANCE: Transfer event (touchpoint 4) recorded in BSM at transfer make-up acceptance
+Exceptions
+	•	Airline may instruct bag offload rather than risk connecting flight delay — offload recorded with IATA delay code 93 (Baggage)
+SLA / Timing
+MCT calculation at ATA of inbound. AMBER alert within 2 min. RED alert immediate with auto-escalation.
+Standards Ref
+IATA Resolution 753; IATA AHM 513 MCT; airport BSM processing standards
+
+
+6. Turnaround & Ground Handling Rules
+6.1 Overview
+Turnaround management rules govern the complete aircraft ground handling lifecycle from chocks-on to pushback, orchestrating all ground service providers, equipment, and milestones according to IATA SGT frameworks, A-CDM milestones, and IGOM safety procedures.
+
+TGH-001  Standard Ground Time (SGT) Calculation Rule   [IATA AHM 513; IATA IGOM §2; A-CDM Specification §4]
+Description
+The rules engine must calculate SGT for every flight based on aircraft type, turnaround type, and airline-specific parameters. SGT is the foundation of the TOBT calculation and all turnaround milestone scheduling.
+Trigger / Input
+	•	Aircraft type (ICAO type code or registration)
+	•	Turnaround type: TRANSIT / ROTATION / OVERNIGHT
+	•	Airline SGT configuration table
+	•	Services in scope: full vs limited catering, cabin clean, fuelling, maintenance check
+Output / Action
+	•	SGT value in minutes for the flight
+	•	TOBT = ATA + SGT (initial; updated as actuals received)
+	•	Milestone schedule: all tasks with target start/completion times derived from TOBT
+Conditions
+	•	SGT EXAMPLES (configurable per airline): A320 Transit=40min, Rotation=50min | B737 Transit=35min, Rotation=50min | A380 Transit=80min, Rotation=90min | B777 Transit=60min, Rotation=75min
+	•	SCOPE ADJUSTMENTS: Full catering +10-15 min / Cabin deep clean +15 min / Engineering inspection +variable
+	•	MINIMUM SGT: Never below aircraft manufacturer's certified minimum (encoded in master data)
+	•	TOBT UPDATE LOGIC: TOBT = latest critical path milestone completion + buffer — recalculated whenever a milestone is completed early or late
+Exceptions
+	•	Maintenance finding extends SGT: AOG or defect report — IROPS rule TGH-005 activates
+	•	Extreme weather: SGT extended by de-icing time — AIR-004 de-icing rules trigger
+SLA / Timing
+SGT calculated at 72-hour pre-tactical phase. TOBT updated real-time. Milestone schedule refreshed within 2 min of any completion.
+Standards Ref
+IATA AHM 513; IATA IGOM §2; A-CDM Spec Annex A (Milestone Approach)
+
+TGH-002  A-CDM Milestone Tracking Rule   [EUROCONTROL A-CDM Specification v3.5; IATA AHM]
+Description
+The rules engine must track all A-CDM milestones, calculate TOBT/TSAT/TTOT in real time, and exchange DPI messages with EUROCONTROL Network Manager for CTOT compliance at A-CDM airports.
+Trigger / Input
+	•	Real-time updates from all ground service providers, airline OCC, ATC, and airport systems
+	•	AODB flight state
+	•	A-CDM partner data feeds
+Output / Action
+	•	Real-time TOBT maintained and published to all A-CDM partners
+	•	TSAT issued when TTOT sequence confirmed
+	•	DPI messages sent to EUROCONTROL NM at each milestone
+	•	CTOT received from NM and published to all partners
+Conditions
+	•	A-CDM MILESTONE SEQUENCE: M1=Flight Plan received | M2=EOBT update (pushback-120min) | M3=TOBT received (earliest pushback-3hr) | M4=TSAT issued (NM confirms sequencing) | M5=TOBT confirmed (pushback-40min) | M6=Start-up received | M7=AOBT recorded | M8=ATOT recorded
+	•	TOBT FREEZE: frozen at TSAT issuance — changes only with NM coordination and new DPI
+	•	CTOT WINDOW: Aircraft must depart CTOT-5min to CTOT+10min. Outside window triggers slot compliance alert
+	•	DPI TRIGGERS: DPI-3 at M3, DPI-2 at M5, DPI-1 at M6, DPI-0 at M7
+Exceptions
+	•	Non-A-CDM airports: TOBT/TSAT not applicable — simplified turnaround tracking using SGT only
+SLA / Timing
+DPI messages: < 30 seconds of milestone trigger. TOBT update: < 2 min. TSAT: at TOBT-40min typically.
+Standards Ref
+EUROCONTROL A-CDM Specification v3.5; ICAO Doc 9971
+
+TGH-003  GSE Dispatch & Allocation Rule   [IATA IGOM §4; IATA AHM §8]
+Description
+The rules engine must automatically allocate and dispatch required Ground Support Equipment to each flight stand at the correct time, following IGOM safety sequencing requirements.
+Trigger / Input
+	•	Turnaround plan: services required, SGT, stand number
+	•	GSE fleet: real-time availability, location, battery/fuel level, maintenance status
+	•	GSE-to-stand travel time matrix
+Output / Action
+	•	GSE assignments per flight: unit, dispatch time, ETA at stand
+	•	Handler resource linked to GSE dispatch
+	•	GSE scheduling board updated
+	•	CMMS notification if maintenance conflict prevents dispatch
+Conditions
+	•	IGOM SAFETY SEQUENCE: GPU/stairs approach only after aircraft engines stopped (ATA confirmed). Rules engine enforces — GPU not dispatched until ATA
+	•	DISPATCH TIMING: Arrive at stand at ATA (or ETA-5min for pre-positioning where safe). Too early wastes resource; too late causes delay
+	•	PRIORITY: Limited fleet → allocate to highest priority first (OTP impact + pax count + airline SLA tier)
+	•	BATTERY/FUEL CHECK: Electric GSE < 20% charge → substitute dispatched. Diesel GSE < 25% fuel → substitute
+Exceptions
+	•	GSE breakdown mid-turn: CMMS fault triggers immediate substitute. If unavailable: turnaround delay with IATA delay code 94 (Ramp Equipment)
+	•	Lightning stand-off: all GSE must clear apron (IGOM §4.6) — turnaround halted, TOBT extended
+SLA / Timing
+GSE allocated: 30 min before ATA. Dispatch order: ETA - 10 min (accounting for travel). Substitute: within 5 min of fault.
+Standards Ref
+IATA IGOM §4; IATA AHM §8
+
+TGH-004  Turnaround Milestone Alert & OTP Protection Rule   [IATA AHM 513; A-CDM Spec; IATA Delay Code Standard]
+Description
+The rules engine must continuously monitor milestone completion against plan and generate alerts at defined thresholds, enabling intervention before delay becomes inevitable. Every unrecovered delay must receive an IATA delay code.
+Trigger / Input
+	•	Real-time milestone completion from handler app, GSE system, catering, fuel, engineering
+	•	Planned milestone times from turnaround plan
+	•	TOBT, TSAT, STD
+Output / Action
+	•	Colour-coded milestone dashboard per flight (GREEN/AMBER/RED per milestone)
+	•	Delay alert to coordinator and handler supervisor
+	•	Predicted ATD based on current milestone state
+	•	Delay code capture form when ATD > STD+15min
+	•	IATA MVT/DLY message generated with delay code
+Conditions
+	•	ALERT THRESHOLDS: AMBER = milestone > 10 min behind plan. RED = > 20 min behind plan AND on critical path
+	•	CRITICAL PATH: Fuelling completion, catering completion, boarding completion, cargo/baggage loading complete, engineering sign-off
+	•	DELAY CODES: IATA ATA codes mandatory when ATD > STD+15min. Captured within 5 min of departure. System validates code against IATA delay code library
+	•	OTP FLAG: Set at ATD > STD+15min (IATA standard). Updated in real time as ATD approaches
+Exceptions
+	•	ATC-caused delays (CTOT): code 81-89 (ATC) — excluded from airline/handler OTP SLA
+	•	Rotational delay (inbound flight late): code 93 (Reactionary) — attributed to originating delay, not current turnaround
+SLA / Timing
+Monitoring: continuous < 1 min interval. AMBER: immediate. RED: immediate with escalation. Delay code: within 5 min of departure.
+Standards Ref
+IATA AHM 513; IATA ATA Delay Codes; EUROCONTROL A-CDM Spec
+
+
+7. AOCC Operations Rules
+7.1 IROPS Detection & Classification
+Irregular Operations (IROPS) are any events causing significant deviation from published schedule. The IROPS engine must detect, classify, and initiate recovery automatically.
+
+AOP-001  IROPS Detection & Classification Rule   [IATA AHM; IATA Delay Codes; A-CDM Specification]
+Description
+The rules engine must automatically detect IROPS events from incoming data feeds and classify them by type, severity, and operational impact before initiating the appropriate recovery workflow.
+Trigger / Input
+	•	AODB flight state changes, delay updates, cancellation messages
+	•	ATC flow restriction messages
+	•	Weather alerts (METAR, SIGMET, ATIS)
+	•	Technical/maintenance reports from airline MCC
+	•	Security alerts from airport authority
+Output / Action
+	•	IROPS event record created: type, severity, affected flights, estimated recovery time
+	•	Automated stakeholder notifications: AOCC, airline OCC, handlers, ATC, security
+	•	IROPS dashboard activated with real-time recovery tracking
+	•	Resource impact cascade: all affected gates, counters, belts, staff
+Conditions
+	•	IROPS TYPES: TYPE-1 Weather | TYPE-2 ATC/Slot (CTOT, flow restriction) | TYPE-3 Technical (AOG, GSE failure) | TYPE-4 Security (terminal evacuation, bomb threat) | TYPE-5 Medical (mass casualty) | TYPE-6 Infrastructure (BHS, power, CUTE failure) | TYPE-7 Reactionary (cascading delays)
+	•	SEVERITY: S1=Minor (1-3 flights, < 1hr) | S2=Moderate (4-10 flights, 1-3hr) | S3=Major (> 10 flights or > 3hr) | S4=Crisis (airport closure, mass cancellation)
+	•	Each type triggers a pre-configured response workflow — configurable per airport emergency plan
+Exceptions
+	•	S4 mass disruption: coordinator invokes CRISIS MODE — dedicated workspace suppressing non-critical alerts
+SLA / Timing
+Detection: < 2 min. Classification: < 30 seconds. Notifications: < 5 min. S4: immediate escalation to emergency coordinator.
+Standards Ref
+IATA AHM; IATA Delay Codes; EUROCONTROL A-CDM §6
+
+AOP-002  OTP Monitoring & Prediction Rule   [IATA Industry Standard (OTP = ATD within STD+15min); A-CDM]
+Description
+The rules engine must maintain real-time OTP at flight, airline, and airport level, with predictive calculations and alerts when OTP targets are at risk.
+Trigger / Input
+	•	Real-time ATD/ATA actuals from AODB
+	•	Current turnaround milestone status for departing flights
+	•	STD for all flights in the operational day
+Output / Action
+	•	Live OTP% at airport, airline, terminal, and hour-band level
+	•	Flight-level OTP prediction: ON TIME (green) / AT RISK (amber) / PREDICTED DELAYED (red)
+	•	Daily OTP summary report (automated at end of day)
+	•	Rolling 7-day and 30-day OTP trend
+Conditions
+	•	OTP STANDARD: Flight is on time if ATD ≤ STD + 15 minutes (IATA industry standard — configurable to ±5min for stricter airline SLA)
+	•	PREDICTION: Predicted ATD = MAX(ATA + SGT, CTOT) + taxi time. If > STD+15min: PREDICTED DELAYED
+	•	AIRLINE SLA: System tracks per-airline OTP against contractual SLA and alerts when season-to-date falls within 5 percentage points of threshold
+	•	EXCLUSIONS: ATC delays (codes 81-89) and weather delays (codes 51-59) tracked separately — configurable inclusion/exclusion from SLA OTP
+Exceptions
+	•	ATC-caused delays always excluded from airport/airline OTP SLA — tracked as ATC-attributed separately
+SLA / Timing
+OTP updates within 2 min of ATD. Prediction refresh every 5 min. Daily report: automated at 23:59 local.
+Standards Ref
+IATA AHM; IATA OTP Definition; airline commercial SLA
+
+AOP-003  What-If Scenario Planning Rule   [EUROCONTROL A-CDM; Airport operational best practice]
+Description
+The rules engine must provide a sandbox what-if environment allowing coordinators to model alternative resource plans without affecting the live operational picture.
+Trigger / Input
+	•	Coordinator-initiated scenario: gate change, aircraft swap, delay injection, cancellation
+	•	Current live operational state (cloned into sandbox at scenario creation)
+Output / Action
+	•	Sandbox plan with full resource allocation for proposed changes
+	•	Impact: OTP change, utilisation change, conflict count, MCT breaches
+	•	Side-by-side comparison: current vs scenario
+	•	Commit: promotes sandbox to live with full audit trail
+Conditions
+	•	SANDBOX ISOLATION: Cloned copy of live data — no AODB changes until coordinator explicitly commits
+	•	SCENARIO TYPES: (1) Gate change (2) Aircraft swap (3) Delay cascade (4) Cancellation (5) Terminal A closure
+	•	IMPACT CALCULATION: downstream conflicts, OTP delta, MCT breach risks, resource conflicts, staffing changes
+	•	MULTI-SCENARIO: Up to 5 concurrent per coordinator session — named, saved, and comparable
+Exceptions
+	•	Live commit is irreversible except by counter-scenario — system shows confirmation dialog with impact summary before committing
+SLA / Timing
+Scenario creation: < 5 seconds. Impact calculation: < 30 seconds for < 50 flights. Commit to live: < 10 seconds.
+Standards Ref
+EUROCONTROL A-CDM (Pre-departure Sequencing); Airport resilience best practice
+
+
+8. Workforce & Staff Management Rules
+8.1 Overview
+Workforce management rules govern allocation of airport operational staff to tasks and flights, subject to skill certification requirements, labour law compliance, and real-time operational demand.
+
+WFM-001  Staff Skill & Certification Compliance Rule   [IATA IGOM §1 (Personnel); ICAO Annex 1; National aviation regulations]
+Description
+The rules engine must never assign a staff member to a task for which they do not hold a current, valid certification. This is a safety requirement — automatically enforced, not left to supervisory discretion.
+Trigger / Input
+	•	Staff certification records: certificate type, issuing authority, expiry date, status
+	•	Task/role certification requirements matrix
+	•	Current operational assignments
+Output / Action
+	•	Valid assignment: staff assigned only to roles matching active certifications
+	•	BLOCKED: staff without valid certification excluded — substitute recommendation generated
+	•	Expiry alert: 30 days before certificate expires
+Conditions
+	•	CERTIFICATION TYPES: Airside Driving Permit (ADP) — required for all airside vehicle operation | Dangerous Goods (DGR) — IATA DGR cert required for cargo/baggage with dangerous goods | Aircraft Marsalling — required for wing-walking and signal-to-captain roles | PRM Assistance — EU Reg 1107/2006 training required | Security Clearance — valid ICTS/equivalent for all security-sensitive positions | GSE Operation — type-specific per GSE model
+	•	EXPIRY LOGIC: Expired = BLOCKED immediately. Expiring in 30 days = WARNING. Expiring in 7 days = CRITICAL WARNING (renewal booking recommended)
+	•	OVERRIDE: Supervisor override requires authentication, mandatory justification text, and is flagged for safety manager review
+Exceptions
+	•	No certified staff available: airport safety manager must be notified — operation paused. No exception for safety-critical roles (ADP, DGR, marsalling)
+SLA / Timing
+Certification check: real-time < 1 second. Expiry alerts: 30, 14, 7, 1 day before expiry. Override: immediate immutable log.
+Standards Ref
+IATA IGOM §1; ICAO Annex 1; national aviation authority regulations
+
+WFM-002  PRM Resource Allocation & EU Reg 1107/2006 Compliance Rule   [EU Regulation 1107/2006; IATA AHM; ECAC Doc 30 Part I]
+Description
+The rules engine must manage end-to-end PRM resource allocation — from pre-notification through boarding, connection, and arrival — ensuring full compliance with EU Regulation 1107/2006.
+Trigger / Input
+	•	PRM pre-notification from airline (SSR codes: WCHR/WCHS/WCHC/BLIND/DEAF/DPNA) via PNL/ADL or API
+	•	Flight ATA/ATD
+	•	PRM resource inventory: wheelchairs, ambulifts, electric vehicles, PRM escorts
+Output / Action
+	•	PRM resource plan per flight: wheelchair count, ambulift requirement, escort count, meet-and-greet timing
+	•	PRM escort dispatch time from gate to check-in zone based on mobility category
+	•	Connecting PRM: transfer assistance plan for MCT-compliant connection
+	•	EU 1107/2006 compliance report
+Conditions
+	•	EU CATEGORIES: WCHR (walk to/from aircraft, needs wheelchair for distances) | WCHS (cannot climb stairs, needs ambulift/jetway) | WCHC (fully immobile, needs ambulift + full escort) | BLIND | DEAF | DPNA (other disability)
+	•	TIMING: PRM meet-and-greet 20 min before check-in opens. PRMs board first; disembark last. Ambulift at stand at ATA for WCHS/WCHC
+	•	STAFFING: Minimum 1 escort per WCHC passenger. Max 4 PRMs per escort for WCHR
+	•	CONNECTING PRM: Assistance required for full transfer journey, not just at gates
+Exceptions
+	•	No PRM may be left unassisted — if resource exhausted, mutual aid with handling agents must activate. Failure is a breach of EU 1107/2006
+	•	PRM presenting without pre-notification: ad-hoc resource on best-effort basis, compliance record flagged
+SLA / Timing
+PRM plan: 24 hours before flight. Resource dispatch: 30 min before PRM meet time. Ambulift: pre-positioned at ATA.
+Standards Ref
+EU Regulation 1107/2006; ECAC Doc 30 Part I; IATA AHM PRM chapter; IATA IGOM PRM
+
+
+9. AICC — Airfield Operations Rules
+9.1 Overview
+AICC rules govern airfield operations: runway/taxiway management, NOTAM processing, FOD detection, vehicle access, de-icing, and safety-critical monitoring — all to ICAO Annex 14 and associated standards.
+
+ICAO ANNEX 14
+ICAO Annex 14 — Aerodromes (Volume I: Aerodrome Design and Operations) defines physical and operational standards for all certified aerodromes. AICC rules enforce these standards in all infrastructure and resource management decisions.
+
+AIR-001  Runway / Taxiway Closure Management Rule   [ICAO Annex 14 §2.9; ICAO Annex 15 (NOTAM); National AIP]
+Description
+All runway and taxiway closures must be managed through a structured workflow ensuring ATC notification, NOTAM publication, RMS resource impact assessment, and controlled reopening.
+Trigger / Input
+	•	Airport authority closure request (planned) or ATC/inspection report (unplanned)
+	•	RMS resource impact: flights using affected element
+	•	NOTAM office link
+Output / Action
+	•	Closure record: affected element, start/end, reason, restrictions
+	•	ATC notification: immediate (unplanned), advance (planned)
+	•	NOTAM drafted and submitted to national AIS
+	•	Resource impact cascade: all affected flights reassessed — alternate routing or stand reallocation
+	•	Reopening: mandatory inspection sign-off required
+Conditions
+	•	UNPLANNED: ATC notified within 2 min. All flights in 30-min window alerted. Stands via affected taxiway reassessed immediately
+	•	PLANNED: NOTAM published minimum 7 days in advance (ICAO Annex 15). RMS impact analysis minimum 48 hours before
+	•	ICAO ANNEX 14 §2.9: Closed runways marked with white crosses at each end and intervals not exceeding 300m — inspection checklist generated
+	•	REOPENING: Mandatory airfield inspection checklist completed and signed off before status changed to OPEN. No reopening without inspection = safety breach
+Exceptions
+	•	Emergency closure (runway incident): ATC has immediate authority — AICC reflects closure on notification, no pre-approval
+	•	Government/military operations on closed elements: special authorisation required — operator override with authority notification
+SLA / Timing
+Unplanned: ATC within 2 min, AICC within 5 min, NOTAM within 30 min. Planned: 7-day NOTAM. Reopening: sign-off within 15 min of inspection.
+Standards Ref
+ICAO Annex 14 §2.9; ICAO Annex 15; national AIP
+
+AIR-002  Vehicle Airside Access Management Rule   [ICAO Annex 14 §9.8; National Aviation Security Programme]
+Description
+All non-aircraft vehicles operating airside must be authorised, tracked, and managed. Unauthorised or untracked airside vehicle movement is a safety and security breach that must be detected and responded to immediately.
+Trigger / Input
+	•	Vehicle access permit database: permit holder, vehicle type/registration, validity, access zones
+	•	Real-time vehicle tracking: MLAT, RFID, ANPR, or GPS beacon
+	•	Airside movement area map with zone definitions
+Output / Action
+	•	Vehicle position on AICC display with status (authorised/expired/unknown)
+	•	INTRUSION ALERT: untracked vehicle in restricted zone — ATC and airfield ops notified immediately
+	•	Permit expiry alert: 30 days before permit expiry
+	•	Access log: complete record for audit
+Conditions
+	•	ZONE CLASSIFICATION: Zone A = Runway/taxiway movement area (highest restriction — ATC authorisation per movement) | Zone B = Apron/parking areas (permit required, ATC coordination required at some airports) | Zone C = Service roads, cargo areas (permit required, no ATC coordination)
+	•	PERMIT VALIDATION: Every vehicle must have valid permit readable by RFID/ANPR. Expired = access denied at gate
+	•	ZONE A INTRUSION: Any vehicle in Zone A without active ATC authorisation triggers immediate CRITICAL alert — ATC and airfield ops notified
+	•	ICAO ANNEX 14 §9.8: Vehicles in movement area must follow ATC instructions at all times
+Exceptions
+	•	Emergency vehicles (fire, ambulance, police): override access all zones — permit bypassed but movement logged
+	•	Escort protocol: permitted vehicles may accompany non-permitted under direct escort — escort vehicle permit covers the convoy
+SLA / Timing
+Permit validation: real-time < 3 seconds. Position update: < 30 seconds. Zone A intrusion: < 10 seconds. Access log: continuous.
+Standards Ref
+ICAO Annex 14 §9.8; ICAO Annex 17 (Security); national airside driving regulations
+
+AIR-003  De-Icing Resource Management & HOT Rule   [IATA AHM Chapter 8; ICAO Doc 9640; IATA/AEA HOT Tables; FAA AC 135-17]
+Description
+During winter operations, the rules engine must manage de-icing pad allocation, crew scheduling, fluid inventory, and Hold-Over Time countdown for every de-iced aircraft — ensuring no aircraft departs after HOT expiry.
+Trigger / Input
+	•	MET data: OAT, precipitation type, intensity, dewpoint, wind
+	•	Aircraft type (determines fluid type and quantity)
+	•	De-icing pad availability and fluid inventory
+	•	CTOT/TSAT for the flight
+Output / Action
+	•	De-icing pad assigned with start time window
+	•	Fluid type (Type I/II/III/IV) per HOT tables and MET conditions
+	•	HOT countdown timer activated at de-icing completion — displayed to crew and AOCC
+	•	HOT BREACH ALERT: aircraft not departed within HOT expiry — immediate alert to pilot and coordinator
+	•	Fluid consumption recorded for inventory management
+Conditions
+	•	HOT CALCULATION: HOT determined by IATA/SAE HOT tables based on fluid type, OAT, precipitation type and intensity. HOT starts at END of de-icing. If HOT expires before departure: re-inspection required, may need re-treatment
+	•	SEQUENCE: Aircraft proceeds directly from de-icing pad to take-off without undue ground hold. Any significant hold after de-icing invalidates HOT
+	•	FLUID TYPES: Type I — heated, short HOT, mainly removal. Type II/IV — thickened, longer HOT, anti-icing capability. Selection per IATA tables for conditions
+	•	PAD ALLOCATION: Pad allocated based on aircraft compatibility, capacity, and sequencing to fit within CTOT window — accounting for de-icing duration per aircraft type
+Exceptions
+	•	Lightning stand-off during de-icing: operations halted, HOT timer suspended. Resumed when warning lifted
+	•	Fluid shortage: coordinator notified immediately. Type substitution only if HOT tables support equivalent performance
+SLA / Timing
+Pad allocation at TSAT-30min. HOT timer at de-icing completion. Pre-warning at HOT-5min. Critical alert at HOT expiry. Fluid alert at < 20% reserve.
+Standards Ref
+IATA AHM Chapter 8; ICAO Doc 9640; FAA AC 135-17; AEA/IATA/ISO HOT Tables
+
+
+10. Passenger Flow Management Rules
+10.1 Overview
+Passenger flow rules govern monitoring, prediction, and optimisation of passenger movement through all terminal touchpoints — integrating queue sensor data, DCS information, and flight schedules to prevent congestion breaches and maintain service quality.
+
+PFM-001  Security Queue SLA Monitoring Rule   [IATA Airport Service Quality (ASQ); ACI ASQ; National security authority]
+Description
+The rules engine must continuously monitor security screening queue times and automatically trigger lane additions, staff redeployment, and alerts when queue times approach or breach SLA thresholds.
+Trigger / Input
+	•	Queue time sensor data: camera-based queue length, throughput counter, electronic queue management
+	•	Security lane status: open/closed/fault
+	•	Staff rostering for security checkpoints
+Output / Action
+	•	Real-time queue time per checkpoint
+	•	AMBER ALERT: approaching SLA (typically > 20 min)
+	•	RED ALERT: at or exceeding SLA (typically > 30 min) — auto lane-opening recommendation
+	•	Staffing demand: additional officers required
+	•	KPI: queue performance vs SLA in ACI ASQ format
+Conditions
+	•	SLA THRESHOLDS (configurable): Domestic: target ≤ 10 min, breach ≥ 20 min. International: target ≤ 15 min, breach ≥ 30 min
+	•	LANE OPENING: When queue > 80% of SLA threshold: additional lanes = CEIL(QUEUE_BACKLOG / (LANE_THROUGHPUT × TARGET_CLEARANCE_TIME)). Notify supervisor
+	•	STAFF REDEPLOYMENT: Available security officers with valid ICTS certification identified — redeployment instruction generated
+	•	CT SCANNERS: Where deployed, throughput updated per scanner model (250-350 pax/hr/lane vs 200-250 for conventional X-ray)
+Exceptions
+	•	Full checkpoint closure (security incident): all passengers redirected to operational checkpoints — floor walker instructions generated. Flight delays escalated to AOCC IROPS
+	•	PRM security: dedicated lane — PRMs not processed through standard queue. Follows WFM-002 PRM rules
+SLA / Timing
+Queue update every 30 seconds. AMBER: immediate on threshold. RED: immediate with escalation. Lane recommendation within 2 min of RED.
+Standards Ref
+IATA ASQ; ACI Airport Service Quality benchmarks; national security authority
+
+
+11. Safety & Compliance Rules
+11.1 Overview
+Safety rules govern automatic detection of safety-relevant events, SMS integration, and emergency plan activation. These rules operate under ICAO Annex 19 and EASA Part-ADR.OPS requirements which are mandatory for all certified aerodromes.
+
+SAF-001  Safety Event Detection & SMS Integration Rule   [ICAO Annex 19; EASA Part-ADR.OPS.B.010; IATA SMS Framework]
+Description
+The rules engine must automatically detect safety-relevant operational events and log them to the airport SMS, ensuring no safety occurrence goes unrecorded — a regulatory requirement under ICAO Annex 19.
+Trigger / Input
+	•	Operational events: stand conflicts, GSE faults, vehicle intrusions, NOTAM breaches, runway incursions, de-icing HOT expiry, apron incidents
+	•	Handler/operator safety reports submitted through system
+	•	AICC alerts: FOD detected, airfield intrusion, lighting fault
+Output / Action
+	•	Safety occurrence record created: event type, location, time, severity, aircraft/vehicle/person involved
+	•	Investigation workflow triggered for significant events
+	•	Regulatory report for mandatory reporting (ICAO, EASA, national CAA)
+	•	Corrective action tracking: recommendations assigned with due dates
+Conditions
+	•	MANDATORY SMS EVENTS: Runway incursion (any unauthorised entry onto runway) — CRITICAL | Aircraft proximity event (stand conflict near-miss) | De-icing HOT breach | Airside vehicle Zone A intrusion | GSE contact with aircraft | FOD on/near movement area | Lightning stand-off non-compliance
+	•	ICAO ANNEX 19 PILLARS: Proactive hazard identification, risk assessment, safety assurance, safety promotion. RMS supports all four pillars with data
+	•	SEVERITY: Level 1 (Hazard — potential, no occurrence) | Level 2 (Incident — abnormal, no injury) | Level 3 (Serious Incident — near-miss) | Level 4 (Accident — injury or damage)
+Exceptions
+	•	Fatalities, serious injuries, or aircraft damage: mandatory report to national accident investigation authority within regulatory timeframe (typically 24-72 hours). System generates notification template
+SLA / Timing
+SMS log: < 5 min of event detection. Critical events: immediate escalation. Regulatory report: within regulatory timeframe. Corrective action: due date set by safety manager.
+Standards Ref
+ICAO Annex 19; EASA Part-ADR.OPS.B.010; IATA SMS Implementation Guide
+
+SAF-002  Emergency Operations Plan (EOP) Activation Rule   [ICAO Annex 14 §9.1; Airport Emergency Plan (AEP); ICAO Doc 9137 Part 7]
+Description
+The rules engine must support rapid activation of the Airport Emergency Plan through pre-configured emergency resource configurations and mass notification capabilities.
+Trigger / Input
+	•	Emergency declaration by AOCC coordinator, ATC, security authority, or automated sensor trigger
+	•	Emergency type classification
+Output / Action
+	•	Emergency resource configuration activated: stands cleared, emergency vehicles pre-positioned, passenger flows rerouted
+	•	Mass notification: airlines, handlers, emergency services, airport authority — simultaneous
+	•	Emergency log created: declaration time, type, authority, all actions taken
+	•	Stand-down: resources returned to operational mode via structured stand-down checklist
+Conditions
+	•	EMERGENCY TYPES: Aircraft Accident | Aircraft Emergency (crash alert) | Hijacking | Bomb Threat | Terminal Fire/Evacuation | Medical Mass Casualty | Fuel Spill/Hazmat | Infrastructure Failure (power, BHS, CUTE)
+	•	ICAO ANNEX 14 §9.1: Airport Emergency Plan must cover all emergencies. RMS integrated with AEP for coordinated resource management
+	•	PRE-CONFIGURED TEMPLATES: Each emergency type has a resource template activated in one action (stands cleared, routes blocked, resources pre-positioned)
+	•	STAND-DOWN: Requires formal authorisation from declaring authority — system prevents stand-down without authorisation token
+Exceptions
+	•	If AOCC systems unavailable: fallback paper-based emergency plan must be accessible to all controllers
+SLA / Timing
+Emergency activation: < 60 seconds from declaration. Mass notification: < 2 minutes. Stand-down: safety-controlled — no time limit.
+Standards Ref
+ICAO Annex 14 §9.1; ICAO Doc 9137 Part 7; national civil aviation regulations
+
+
+12. Data Exchange & Message Processing Rules
+12.1 AODB as Single Source of Truth
+The Airport Operational Database (AODB) is the authoritative source of truth for all RMS decisions. All rules operate on AODB data. No allocation or decision may be made from a secondary source without AODB validation.
+
+DESIGN PRINCIPLE
+Every flight data source (airline, ATC, ground handler, OCC) feeds INTO the AODB. The AODB reconciles conflicts between sources using defined priority rules. All RMS modules READ from and WRITE to the AODB only. Point-to-point integrations that bypass the AODB are prohibited.
+
+12.2 Message Types & Processing SLAs
+
+Message
+Source
+Destination
+Data Content
+Criticality
+SLA
+MVT
+Airline OCC / ACARS
+AODB
+ATD, ATA, chocks-on, pushback, registration, delays
+CRITICAL
+< 2 min of actual
+LDM
+Ground Handler
+AODB / BHS
+Pax count, bag count, cargo weight, ULD list per hold
+HIGH
+Before departure
+BSM
+DCS / BHS
+BHS / AODB
+Bag tag, flight, passenger, status per Res.753 touchpoint
+HIGH
+At each touchpoint
+PSM/PNL
+Airline DCS
+AODB / Handler
+PRM list, SSRs, unaccompanied minors
+HIGH
+At check-in completion
+DPI
+AODB / A-CDM
+EUROCONTROL NM
+EOBT, TOBT, AOBT — A-CDM milestone updates
+CRITICAL
+< 30s of milestone
+CTOT
+EUROCONTROL NM
+AODB / Airline / ATC
+Calculated Take-Off Time — mandatory ATC constraint
+CRITICAL
+< 5 min of issuance
+ATIS/METAR
+MET / ATC
+AODB / AICC
+Current and forecast weather — RVR, QNH, wind, precipitation
+HIGH
+Every 30 min + on change
+NOTAM
+AIS / NOTAM Office
+AODB / AICC
+Active NOTAMs with constraint encoding
+HIGH
+Within 15 min of publication
+SAL / SNA
+Slot Coordinator
+AODB / Airline
+Slot allocations, denials, alternatives
+MEDIUM
+Within 1 hour
+CPM
+Ground Handler
+AODB
+ULD positions and contents per aircraft hold section
+HIGH
+Before departure
+
+
+13. Rules Engine System Requirements
+13.1 Performance & SLA Requirements
+
+Rule Domain
+Calculation SLA
+Alert Latency
+Uptime SLA
+Gate / Stand Auto-Allocation
+Single flight: < 5 seconds
+Conflict alert: < 2 seconds of data change
+99.99%
+Check-In Counter Allocation
+Single flight: < 10 seconds
+SLA breach alert: < 5 minutes
+99.99%
+Baggage Belt / Carousel
+Single flight: < 10 seconds
+First/last bag SLA alert: < 1 minute
+99.99%
+A-CDM TOBT Calculation
+< 2 minutes of trigger event
+DPI message: < 30 seconds of milestone
+99.999%
+Turnaround Milestone Monitor
+Continuous — 1 min interval
+AMBER: immediate; RED: immediate
+99.99%
+OTP Calculation
+< 2 minutes of ATD
+OTP risk alert: 30 min before STD
+99.99%
+IROPS Detection
+< 2 minutes of trigger
+S1-S3: < 5 min; S4 crisis: < 60 sec
+99.999%
+Security Queue Monitor
+30-second refresh cycle
+AMBER: immediate; RED: immediate
+99.99%
+De-Icing HOT Countdown
+Real-time 1-second precision
+HOT warning: 5 min before expiry; breach: immediate
+99.999%
+Emergency Plan Activation
+< 60 seconds activation
+Mass notification: < 2 minutes
+99.999%
+
+13.2 Audit Trail Requirements
+
+NON-NEGOTIABLE
+Every rule execution, allocation decision, alert, override, and state change must produce an immutable audit log entry. Required for: ICAO SMS compliance (Annex 19), IATA standard compliance, SLA dispute resolution, safety investigation evidence, and regulatory reporting.
+
+Audit Category
+Fields Logged
+Retention
+Regulatory Basis
+Allocation Decisions
+Rule ID, flight reference, resource assigned, scoring data, timestamp, actor, alternatives considered
+7 years
+IATA AHM; airport licence
+Manual Overrides
+Override type, system decision overridden, coordinator ID, justification text, safety manager flag
+10 years
+ICAO Annex 19 SMS; liability
+Safety Events
+Event type, severity, location, aircraft/vehicle/person, actions, SMS case ref, investigation findings
+Permanent
+ICAO Annex 19; EASA Part-ADR
+IROPS Events
+IROPS type, detection time, classification, affected flights, recovery actions, delay codes
+7 years
+EU Reg 261/2004; airline SLA
+A-CDM Milestones
+TOBT, TSAT, DPI messages, CTOT, AOBT, ATOT — all timestamped
+5 years
+EUROCONTROL A-CDM; WASG
+De-Icing Events
+Registration, fluid type, quantity, OAT, HOT calculated/started/expired, actual departure
+5 years
+ICAO Doc 9640; safety/liability
+Conflict Resolutions
+Conflict type, flights involved, rule applied, resolution action, escalation, resolver ID
+7 years
+IATA AHM; safety investigation
+Access Control Events
+Vehicle ID, permit, zone accessed, entry/exit timestamps, ATC authorisation, intrusion alerts
+3 years
+ICAO Annex 17 (Security)
+
+
+14. Resource Lifecycle — State Machine
+14.1 Universal Resource States
+All RMS resources (gates, stands, counters, belts, carousels, GSE, staff positions, airfield elements) share a common state machine. The rules engine enforces valid transitions and prevents conflicting operations on incompatible resource states.
+
+State
+Definition
+Permitted Operations
+Transition Triggers
+AVAILABLE
+Resource is operational and unallocated. Ready to be assigned.
+Allocation request, maintenance scheduling
+Resource released or newly commissioned
+ALLOCATED
+Resource confirmed to a specific flight/task in a defined time window.
+Flight state change, delay update, manual coordinator change
+Allocation confirmed by rules engine
+OCCUPIED
+Resource is physically in use: aircraft on stand, bags on belt, staff at post.
+Operation completion, flight departure
+ATA recorded / task start confirmed
+TURNAROUND
+Stand/gate: aircraft on stand, turnaround in progress, nearing release.
+Milestone completion, pushback clearance
+Chocks-on ATA recorded
+MAINTENANCE
+Removed from service for scheduled or unscheduled maintenance.
+Maintenance completion sign-off
+CMMS work order / fault report
+BLOCKED
+Withheld from allocation: NOTAM restriction, operational reserve, safety exclusion.
+NOTAM cancellation, restriction lift, coordinator unblock
+NOTAM published / coordinator action
+CONFLICT
+Two allocations with overlapping time windows. Must be resolved before operation.
+Auto-resolution or coordinator manual resolution
+Conflict detection algorithm trigger
+EMERGENCY
+Reserved for emergency operation. Cannot be allocated to normal flights.
+Emergency stand-down with authority authorisation
+EOP activation (SAF-002)
+DECOMMISSIONED
+Permanently removed from service. Terminal state — no further allocation.
+None — terminal state
+Infrastructure change / master plan update
+
+
+15. Glossary of Terms & Abbreviations
+
+Term
+Definition
+A-CDM
+Airport Collaborative Decision Making — EUROCONTROL-led process enabling all airport stakeholders to share real-time data for optimised departure management.
+ADS-B
+Automatic Dependent Surveillance-Broadcast — aircraft system broadcasting position, altitude, and speed to ground receivers and other aircraft.
+AHM
+Airport Handling Manual — IATA publication defining standard procedures for all airport and ground handling operations.
+AICC
+Airport Infrastructure and Control Centre — the operations centre managing airfield, infrastructure, and safety-critical systems.
+AODB
+Airport Operational Database — central real-time database, single source of truth for all flight and operational data.
+AOCC
+Airport Operations Control Centre — primary centre managing flight-related resources and stakeholder coordination.
+AOG
+Aircraft on Ground — grounded due to technical defect. Triggers IROPS workflow.
+ATIS
+Automatic Terminal Information Service — recorded broadcast of current aerodrome weather and NOTAM information for pilots.
+ATA / ATD
+Actual Time of Arrival (chocks on) / Actual Time of Departure (off-blocks). Definitive movement times in AODB.
+BHS
+Baggage Handling System — automated conveyors, sorters, and scanners processing checked bags from check-in to aircraft and vice versa.
+BSM
+Baggage Source Message — message from DCS to BHS identifying each bag; also used for IATA Resolution 753 tracking events.
+CMMS
+Computerised Maintenance Management System — manages maintenance schedules, work orders, and equipment status for GSE and infrastructure.
+CTOT
+Calculated Take-Off Time — mandatory departure window from EUROCONTROL NM. Aircraft must depart CTOT-5min to CTOT+10min.
+CUTE / CUSS
+Common Use Terminal Equipment / Common Use Self-Service — IATA standards (RP1797C) for shared check-in terminals and self-service kiosks.
+DCS
+Departure Control System — airline system managing check-in, boarding, weight and balance, and passenger/bag data for departing flights.
+DPI
+Departure Planning Information — A-CDM messages to EUROCONTROL NM at each departure planning milestone (DPI-3 through DPI-0).
+EBS
+Early Bag Store — facility within BHS holding bags checked in before the BHS make-up window opens for the flight.
+EOBT
+Estimated Off-Block Time — initially estimated departure time submitted by airlines in the flight plan.
+FOD
+Foreign Object Debris — any object on the airfield movement area that could damage aircraft. Safety-critical AICC monitoring function.
+GPU
+Ground Power Unit — provides electrical power to parked aircraft, avoiding APU use (reduces noise and emissions).
+GSE
+Ground Support Equipment — GPU, stairs, belt loaders, pushback tugs, catering trucks, fuel bowsers, water/waste service, PCA.
+HOT
+Hold-Over Time — estimated time de-icing/anti-icing treatment remains effective. Aircraft must depart before HOT expires.
+IGOM
+IATA Ground Operations Manual — IATA's global standard for safe and efficient ground handling procedures.
+IROPS
+Irregular Operations — any unplanned event causing significant deviation from published schedule.
+MCT
+Minimum Connection Time — published minimum time for passenger or bag to transfer between two flights at the airport.
+MLAT
+Multilateration — surface movement surveillance determining positions by measuring signal time differences across multiple receivers.
+NOTAM
+Notice to Airmen — official notice alerting pilots and operations personnel to information essential for flight safety.
+OTP
+On-Time Performance — % departures with ATD within 15 min of STD. IATA industry standard KPI.
+PNL / ADL
+Passenger Name List / Additions Deletions List — DCS messages listing passengers and service requirements including PRMs.
+PRM
+Passenger Requiring Assistance / Persons with Reduced Mobility — entitled to free assistance under EU Regulation 1107/2006.
+SGT
+Standard Ground Time — minimum turnaround time per aircraft type and rotation type. Basis for TOBT calculation.
+SMS
+Safety Management System — systematic approach to managing safety required by ICAO Annex 19 for all certified aerodromes.
+TOBT
+Target Off-Block Time — time handler/airline estimates aircraft ready to push back. Key A-CDM input. Formula: ATA + SGT.
+TSAT
+Target Start-Up Approval Time — A-CDM calculated time ATC will approve engine start.
+TTOT
+Target Take-Off Time — departure runway time targeted by A-CDM. TTOT = TSAT + start-up time + taxi time.
+ULD
+Unit Load Device — standardised aircraft cargo containers and pallets. ULD assignment is part of make-up and cargo loading planning.
+VDGS
+Visual Docking Guidance System — electronic system guiding pilots to the correct parking position on a stand.
+

@@ -1,0 +1,111 @@
+-- Refine and extend demo rule set for stakeholder walkthroughs (tenant: default).
+-- Keeps fixed IDs for deterministic demos and uses upsert for re-runs.
+
+INSERT INTO rules (
+    rule_id,
+    tenant_id,
+    rule_name,
+    resource_type,
+    priority,
+    scoring_criteria,
+    applicable_airlines,
+    applicable_terminals,
+    time_windows,
+    is_active,
+    created_at,
+    updated_at
+) VALUES
+(
+    'a0000001-0000-4000-8000-000000000001'::uuid,
+    'default',
+    'T2 Intl — contact stand optimization',
+    'STAND',
+    1,
+    '{"terminal_match":14,"airline_affinity":11,"contact_stand_preference":10,"passenger_walk_distance":8,"turnaround_stand_fit":8,"utilisation_balance":4}'::jsonb,
+    '["BA","LH"]'::jsonb,
+    '["T2"]'::jsonb,
+    '[{"name":"intl_bank_morning","start_local":"05:00","end_local":"11:00"}]'::jsonb,
+    true,
+    now(),
+    now()
+),
+(
+    'a0000001-0000-4000-8000-000000000002'::uuid,
+    'default',
+    'Default gate — terminal + balance baseline',
+    'GATE',
+    12,
+    '{"terminal_match":12,"utilisation_balance":10,"mct_adjacency":6}'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    true,
+    now(),
+    now()
+),
+(
+    'a0000001-0000-4000-8000-000000000003'::uuid,
+    'default',
+    'Stand — transfer wave adjacency boost',
+    'STAND',
+    3,
+    '{"mct_adjacency":12,"passenger_walk_distance":10,"terminal_match":9,"turnaround_stand_fit":8,"utilisation_balance":5}'::jsonb,
+    '[]'::jsonb,
+    '["T1","T2"]'::jsonb,
+    '[{"name":"hub_transfer_peak","start_local":"16:00","end_local":"21:30"}]'::jsonb,
+    true,
+    now(),
+    now()
+),
+(
+    'a0000001-0000-4000-8000-000000000004'::uuid,
+    'default',
+    'Gate — premium long-haul preference',
+    'GATE',
+    8,
+    '{"airline_affinity":12,"terminal_match":10,"contact_stand_preference":9,"passenger_walk_distance":7,"utilisation_balance":4}'::jsonb,
+    '["BA","LH","EK","QR"]'::jsonb,
+    '["T2"]'::jsonb,
+    '[]'::jsonb,
+    true,
+    now(),
+    now()
+),
+(
+    'a0000001-0000-4000-8000-000000000005'::uuid,
+    'default',
+    'Belt — outbound make-up throughput smoothing',
+    'BELT',
+    15,
+    '{"capacity_fit":13,"utilisation_balance":11,"turnaround_stand_fit":7,"terminal_match":4}'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '[{"name":"departure_peak","start_local":"06:00","end_local":"10:30"},{"name":"departure_peak_pm","start_local":"17:00","end_local":"22:00"}]'::jsonb,
+    true,
+    now(),
+    now()
+),
+(
+    'a0000001-0000-4000-8000-000000000006'::uuid,
+    'default',
+    'Check-in — queue protection profile',
+    'CHECKIN_DESK',
+    18,
+    '{"capacity_fit":12,"terminal_match":8,"airline_affinity":8,"utilisation_balance":6}'::jsonb,
+    '[]'::jsonb,
+    '["T2"]'::jsonb,
+    '[{"name":"checkin_opening_wave","start_local":"04:30","end_local":"09:30"}]'::jsonb,
+    true,
+    now(),
+    now()
+)
+ON CONFLICT (rule_id) DO UPDATE SET
+    rule_name = EXCLUDED.rule_name,
+    resource_type = EXCLUDED.resource_type,
+    priority = EXCLUDED.priority,
+    scoring_criteria = EXCLUDED.scoring_criteria,
+    applicable_airlines = EXCLUDED.applicable_airlines,
+    applicable_terminals = EXCLUDED.applicable_terminals,
+    time_windows = EXCLUDED.time_windows,
+    is_active = EXCLUDED.is_active,
+    updated_at = now();
