@@ -398,12 +398,12 @@ export default function GanttPage() {
             <button className="btn-ghost p-2" onClick={() => setWindowStart(s => addHours(s, zoomCfg.hours / 2))}>
               <ChevronRight size={15} />
             </button>
-            <button className="btn-secondary text-xs px-2 py-1 ml-1" onClick={() => setWindowStart(subHours(new Date(), 1))}>
+            <button className="pill-tab ml-1" onClick={() => setWindowStart(subHours(new Date(), 1))}>
               <RotateCcw size={11} className="inline mr-1" />Now
             </button>
             <button
               type="button"
-              className="btn-secondary text-xs px-2 py-1 ml-1"
+              className="pill-tab ml-1"
               title="Pan and zoom so your allocations appear in the chart"
               onClick={fitWindowToAllocations}
             >
@@ -415,7 +415,7 @@ export default function GanttPage() {
           <div className="h-5 w-px bg-surface-4" />
 
           <div className="flex gap-1">
-            {Object.keys(ZOOM_CONFIGS).map(z => <button key={z} onClick={() => setZoom(z)} className={clsx('px-2 py-1 text-xs rounded font-mono', zoom === z ? 'bg-accent-blue text-white' : 'btn-ghost')}>
+            {Object.keys(ZOOM_CONFIGS).map(z => <button key={z} onClick={() => setZoom(z)} className={clsx('pill-tab font-mono min-w-[78px]', zoom === z && 'active')}>
                 {ZOOM_CONFIGS[z].label}
               </button>)}
           </div>
@@ -427,7 +427,7 @@ export default function GanttPage() {
             const n = new Set(prev);
             n.has(t) ? n.delete(t) : n.add(t);
             return n;
-          })} className={clsx('text-xs px-2 py-0.5 rounded border transition-colors', selectedTypes.has(t) ? 'border-accent-blue/50 bg-surface-3 text-primary' : 'border-surface-4 text-muted')}>
+          })} className={clsx('pill-tab min-w-[96px]', selectedTypes.has(t) && 'active')}>
                 {t.replace('_', ' ')}
               </button>)}
           </div>

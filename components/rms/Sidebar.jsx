@@ -161,21 +161,29 @@ export default function Sidebar({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            padding: collapsed ? '11px 0' : '9px 13px 9px 14px',
+            minHeight: '40px',
+            padding: collapsed ? '0' : '0 14px',
             justifyContent: collapsed ? 'center' : 'flex-start',
-            margin: '1px 8px',
-            borderRadius: '6px',
+            margin: '4px 8px',
+            borderRadius: '12px',
             textDecoration: 'none',
             fontSize: '0.8rem',
-            fontWeight: active ? 600 : 400,
-            color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            background: active ? 'rgba(253, 224, 71, 0.12)' : 'transparent',
-            borderLeft: active ? '3px solid var(--accent-blue)' : '3px solid transparent',
-            transition: 'all 0.15s'
+            fontWeight: active ? 700 : 500,
+            color: active ? '#12121e' : 'var(--text-secondary)',
+            background: active ? 'var(--accent-blue)' : 'transparent',
+            border: active ? '1px solid rgba(250, 204, 21, 0.8)' : '1px solid transparent',
+            boxShadow: active ? '0 6px 20px rgba(253, 224, 71, 0.18)' : 'none',
+            transition: 'all 0.18s ease'
           }} onMouseEnter={e => {
-            if (!active) e.currentTarget.style.background = 'var(--surface-3)';
+            if (!active) {
+              e.currentTarget.style.background = 'var(--surface-3)';
+              e.currentTarget.style.color = 'var(--accent-blue)';
+            }
           }} onMouseLeave={e => {
-            if (!active) e.currentTarget.style.background = 'transparent';
+            if (!active) {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+            }
           }}>
                   <Icon size={15} style={{
               flexShrink: 0

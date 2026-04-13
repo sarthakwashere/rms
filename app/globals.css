@@ -217,15 +217,17 @@ html, body {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   transition: all 0.15s;
   cursor: pointer;
-  border: none;
+  border: 1px solid transparent;
   white-space: nowrap;
 }
 
@@ -278,12 +280,72 @@ html, body {
   color: var(--text-primary);
 }
 
-.btn-sm { padding: 5px 10px; font-size: 0.72rem; }
-.btn-lg { padding: 12px 24px; font-size: 0.9rem; }
+.btn-sm { min-height: 34px; padding: 0 12px; font-size: 0.75rem; border-radius: 10px; }
+.btn-lg { min-height: 44px; padding: 0 22px; font-size: 0.9rem; border-radius: 14px; }
 
 .btn-primary .spinner {
   border-color: rgba(18, 18, 30, 0.2);
   border-top-color: #12121e;
+}
+
+/* Unified "tab/pill" controls used in toolbars and filters */
+.pill-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  min-width: 112px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--accent-blue);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+
+.pill-tab:hover {
+  border-color: var(--border-bright);
+  color: var(--text-primary);
+}
+
+.pill-tab.active {
+  background: var(--accent-blue);
+  color: #12121e;
+  border-color: rgba(250, 204, 21, 0.8);
+  box-shadow: 0 8px 22px rgba(253, 224, 71, 0.2);
+}
+
+/* Legacy sidebar variant */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin: 4px 8px;
+  padding: 0 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+}
+
+.nav-item:hover {
+  background: var(--surface-3);
+  color: var(--accent-blue);
+}
+
+.nav-item.active {
+  background: var(--accent-blue);
+  color: #12121e;
+  border-color: rgba(250, 204, 21, 0.8);
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(253, 224, 71, 0.2);
 }
 
 /* ============================================================================

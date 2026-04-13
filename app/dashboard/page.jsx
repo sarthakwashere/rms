@@ -189,22 +189,34 @@ export default function DashboardPage() {
     color: stats.critical > 0 ? '#ef4444' : '#22c55e',
     border: stats.critical > 0 ? '#ef4444' : '#22c55e'
   }];
+  const topTabBase = 'inline-flex items-center justify-center gap-2 h-10 min-w-[200px] px-4 rounded-xl border text-sm font-semibold transition-colors';
+  const topTabActiveStyle = {
+    background: 'var(--accent-blue)',
+    color: '#12121e',
+    borderColor: 'rgba(250, 204, 21, 0.8)',
+    boxShadow: '0 8px 22px rgba(253, 224, 71, 0.2)'
+  };
+  const topTabInactiveStyle = {
+    background: 'var(--surface-3)',
+    color: 'var(--accent-blue)',
+    borderColor: 'var(--border)'
+  };
   return <AuthLayout title="Dashboard">
       <div className="flex flex-col gap-5">
 
         {/* Top controls */}
         <div className="flex items-center gap-3 flex-wrap">
-          <button onClick={handleRunEngine} disabled={running} className="btn-primary flex items-center gap-2">
+          <button onClick={handleRunEngine} disabled={running} className={topTabBase} style={topTabActiveStyle}>
             {running ? <div className="spinner w-4 h-4" /> : <Play size={15} />}
             {running ? 'Running Engine…' : 'Run Auto-Allocation'}
           </button>
 
-          <button onClick={() => setAutoRefresh(r => !r)} className={clsx('flex items-center gap-2 text-sm px-3 py-2 rounded border transition-colors', autoRefresh ? 'bg-green-900/30 border-green-500/40 text-green-400' : 'btn-secondary')}>
+          <button onClick={() => setAutoRefresh(r => !r)} className={topTabBase} style={autoRefresh ? topTabActiveStyle : topTabInactiveStyle}>
             {autoRefresh ? <><span className="dot-live" /> Live</> : <><RefreshCw size={13} /> Auto-refresh</>}
           </button>
 
           {/* WebSocket status */}
-          <div className={clsx('flex items-center gap-1.5 text-xs px-2 py-1 rounded border', wsStatus === 'connected' ? 'bg-green-900/20 border-green-500/30 text-green-400' : 'bg-surface-3 border-surface-4 text-muted')}>
+          <div className={topTabBase} style={wsStatus === 'connected' ? topTabActiveStyle : topTabInactiveStyle}>
             {wsStatus === 'connected' ? <Wifi size={12} /> : <WifiOff size={12} />}
             WS: {wsStatus}
           </div>
