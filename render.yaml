@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: rms-backend
+    env: java
+    plan: free
+    rootDir: BACKEND/RMSBackend
+    buildCommand: ./mvnw -DskipTests package
+    startCommand: java -jar target/rms-backend-0.0.1-SNAPSHOT.jar
+    healthCheckPath: /api/v1/rms/rules
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: rms-postgres
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: rms-postgres
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: rms-postgres
+          property: password
+
+  - type: web
+    name: rms-frontend
+    env: static
+    plan: free
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: rms-backend
+          property: url
+
+databases:
+  - name: rms-postgres
+    databaseName: rms
+    plan: free
